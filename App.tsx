@@ -181,6 +181,44 @@ function App() {
       );
   }
 
+  if (initError && initError !== 'TABLE_MISSING') {
+      return (
+          <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4" dir="rtl">
+              <div className="bg-white max-w-lg w-full rounded-2xl shadow-xl p-6 border-t-4 border-red-500">
+                  <div className="flex flex-col items-center text-center mb-6">
+                      <div className="bg-red-100 p-4 rounded-full mb-4">
+                          <Database className="w-10 h-10 text-red-600" />
+                      </div>
+                      <h2 className="text-2xl font-bold text-slate-800">تعذر الاتصال بقاعدة البيانات</h2>
+                      <p className="text-slate-600 mt-2">
+                          يبدو أن هناك مشكلة في الاتصال بـ Supabase. إذا لم تستخدم التطبيق لعدة أيام، فقد يكون المشروع في حالة إيقاف مؤقت (Paused).
+                      </p>
+                      <p className="text-red-500 text-sm mt-4 bg-red-50 p-3 rounded-lg w-full text-right">
+                          تفاصيل الخطأ: {initError}
+                      </p>
+                  </div>
+
+                  <div className="space-y-3">
+                      <div className="text-sm text-slate-500 bg-slate-100 p-3 rounded-lg">
+                          <ol className="list-decimal list-inside space-y-1">
+                              <li>اذهب إلى لوحة تحكم <b>Supabase</b>.</li>
+                              <li>تحقق مما إذا كان مشروعك في حالة <b>Paused</b>.</li>
+                              <li>اضغط على <b>Restore</b> لإعادة تشغيله.</li>
+                          </ol>
+                      </div>
+                      <button 
+                        onClick={loadData}
+                        className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+                      >
+                          <RefreshCw className="w-5 h-5" />
+                          أعد المحاولة
+                      </button>
+                  </div>
+              </div>
+          </div>
+      );
+  }
+
   // 2. Render Loading
   if (loading && products.length === 0) {
     return (
