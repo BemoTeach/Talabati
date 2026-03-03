@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { Product, CartItem } from '../types';
 import { requestReview, addProduct, addBatchProducts, deleteProducts } from '../services/productService';
 import { exportCurrentList, exportHistoryTabs } from '../utils/excelExport';
-import { Download, Send, CheckSquare, Square, Search, X, LogOut, PackagePlus, FileText, ListPlus, AlertCircle, CheckCircle, Trash2, Database, Copy, Check, ShoppingCart, Plus, Loader, Archive, FileDown } from 'lucide-react';
-import { FIX_SQL } from '../constants';
+import { Download, Send, CheckSquare, Square, Search, X, LogOut, PackagePlus, FileText, ListPlus, AlertCircle, CheckCircle, Trash2, ShoppingCart, Plus, Loader, Archive, FileDown } from 'lucide-react';
 import OrderSheet from './OrderSheet';
 
 interface Props {
@@ -28,10 +27,6 @@ const AdminPanel: React.FC<Props> = ({ products, refreshData, onLogout }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isOrderSheetOpen, setIsOrderSheetOpen] = useState(false);
 
-  // SQL Help Modal
-  const [showSqlHelp, setShowSqlHelp] = useState(false);
-  const [copied, setCopied] = useState(false);
-  
   // Feedback Status
   const [statusMsg, setStatusMsg] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
@@ -62,12 +57,6 @@ const AdminPanel: React.FC<Props> = ({ products, refreshData, onLogout }) => {
   };
 
   const clearStatus = () => setStatusMsg(null);
-
-  const handleCopySQL = () => {
-      navigator.clipboard.writeText(FIX_SQL);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-  };
 
   // Simple List Export
   const handleSimpleExport = async () => {
@@ -277,11 +266,12 @@ const AdminPanel: React.FC<Props> = ({ products, refreshData, onLogout }) => {
                     )}
                 </button>
                 <button 
-                  onClick={() => setShowSqlHelp(true)} 
-                  className="bg-slate-700 p-2 rounded-lg hover:bg-slate-600 text-emerald-300"
-                  title="إصلاح قاعدة البيانات"
+                  onClick={handleBackupExport}
+                  disabled={isBackupExporting}
+                  className="bg-slate-700 p-2 rounded-lg hover:bg-slate-600 text-orange-300 disabled:opacity-50"
+                  title="نسخة احتياطية (سجل التعديلات)"
                 >
-                    <Database className="w-5 h-5" />
+                    {isBackupExporting ? <Loader className="w-5 h-5 animate-spin" /> : <Archive className="w-5 h-5" />}
                 </button>
                 <button onClick={onLogout} className="bg-slate-700 p-2 rounded-lg hover:bg-slate-600">
                     <LogOut className="w-5 h-5" />
@@ -327,42 +317,6 @@ const AdminPanel: React.FC<Props> = ({ products, refreshData, onLogout }) => {
           </div>
       )}
 
-      {/* SQL Help Modal */}
-      {showSqlHelp && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg">
-             <div className="flex justify-between items-center mb-4 border-b pb-2">
-               <h3 className="text-lg font-bold flex items-center gap-2">
-                 <Database className="w-5 h-5 text-emerald-600"/>
-                 إصلاح مشاكل قاعدة البيانات
-               </h3>
-               <button onClick={() => setShowSqlHelp(false)} className="text-gray-500 hover:text-black"><X/></button>
-             </div>
-             
-             <p className="text-sm text-gray-600 mb-3">
-               اذا واجهت مشاكل في <b>الحذف</b> أو <b>الإضافة</b>، قم بتشغيل الكود التالي في Supabase SQL Editor:
-             </p>
-
-             <div className="bg-slate-900 rounded-lg p-3 mb-4 relative">
-                <pre className="text-emerald-400 font-mono text-xs overflow-x-auto whitespace-pre-wrap text-left dir-ltr max-h-60 overflow-y-auto">
-                    {FIX_SQL.trim()}
-                </pre>
-                <button 
-                  onClick={handleCopySQL}
-                  className="absolute top-2 right-2 bg-white/10 hover:bg-white/20 text-white p-2 rounded transition-colors"
-                  title="نسخ الكود"
-                >
-                    {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                </button>
-             </div>
-             
-             <button onClick={() => setShowSqlHelp(false)} className="w-full bg-slate-100 text-slate-700 font-bold py-2 rounded-lg">
-               إغلاق
-             </button>
-           </div>
-        </div>
-      )}
-
       {activeTab === 'manage' && (
           <div className="p-4">
              <div className="flex flex-col gap-2 mb-4">
@@ -380,20 +334,11 @@ const AdminPanel: React.FC<Props> = ({ products, refreshData, onLogout }) => {
                     <button 
                         onClick={handleSimpleExport}
                         disabled={isSimpleExporting}
-                        className="flex-1 bg-white border border-slate-300 text-slate-700 p-2 rounded-lg shadow-sm active:bg-slate-50 flex items-center justify-center gap-2 text-sm font-bold"
+                        className="w-full bg-white border border-slate-300 text-slate-700 p-2 rounded-lg shadow-sm active:bg-slate-50 flex items-center justify-center gap-2 text-sm font-bold"
                         title="تنزيل القائمة الحالية"
                     >
                         {isSimpleExporting ? <Loader className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4 text-blue-600" />}
                         قائمة الأسعار
-                    </button>
-                    <button 
-                        onClick={handleBackupExport}
-                        disabled={isBackupExporting}
-                        className="flex-1 bg-white border border-slate-300 text-slate-700 p-2 rounded-lg shadow-sm active:bg-slate-50 flex items-center justify-center gap-2 text-sm font-bold"
-                        title="تنزيل نسخة احتياطية ذكية (تبويبات)"
-                    >
-                        {isBackupExporting ? <Loader className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4 text-orange-600" />}
-                        سجل التعديلات
                     </button>
                  </div>
              </div>
