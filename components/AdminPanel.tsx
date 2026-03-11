@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Product, CartItem } from '../types';
-import { requestReview, addProduct, addBatchProducts, deleteProducts } from '../services/productService';
+import { requestReview, addProduct, addBatchProducts, deleteProducts, fetchSettings, updateSettings } from '../services/productService';
 import { exportCurrentList, exportHistoryTabs } from '../utils/excelExport';
-import { Download, Send, CheckSquare, Square, Search, X, LogOut, PackagePlus, FileText, ListPlus, AlertCircle, CheckCircle, Trash2, ShoppingCart, Plus, Loader, Archive, FileDown } from 'lucide-react';
+import { Download, Send, CheckSquare, Square, Search, X, LogOut, PackagePlus, FileText, ListPlus, AlertCircle, CheckCircle, Trash2, ShoppingCart, Plus, Loader, Archive, FileDown, Settings, Copy } from 'lucide-react';
 import OrderSheet from './OrderSheet';
 
 interface Props {
@@ -16,8 +16,35 @@ const AdminPanel: React.FC<Props> = ({ products, refreshData, onLogout }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sending, setSending] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'manage' | 'add'>('manage');
+  const [activeTab, setActiveTab] = useState<'manage' | 'add' | 'settings'>('manage');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Settings State
+  const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      const settings = await fetchSettings();
+      if (settings) {
+        setWhatsappNumber(settings.whatsapp_number || '');
+      }
+    };
+    loadSettings();
+  }, []);
+
+  const handleSaveSettings = async () => {
+    setIsSavingSettings(true);
+    clearStatus();
+    try {
+      await updateSettings(whatsappNumber);
+      setStatusMsg({type: 'success', text: "تم حفظ الإعدادات بنجاح"});
+    } catch (e: any) {
+      setStatusMsg({type: 'error', text: "فشل حفظ الإعدادات: " + (e.message || "خطأ غير معروف")});
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
   
   // Export states
   const [isSimpleExporting, setIsSimpleExporting] = useState(false);
@@ -305,6 +332,13 @@ const AdminPanel: React.FC<Props> = ({ products, refreshData, onLogout }) => {
                 <PackagePlus className="w-4 h-4" />
                 إضافة سلع
             </button>
+            <button 
+                onClick={() => { setActiveTab('settings'); clearStatus(); }}
+                className={`flex-1 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 ${activeTab === 'settings' ? 'bg-emerald-500 font-bold' : 'bg-slate-700'}`}
+            >
+                <Settings className="w-4 h-4" />
+                الإعدادات
+            </button>
         </div>
       </div>
 
@@ -512,6 +546,78 @@ const AdminPanel: React.FC<Props> = ({ products, refreshData, onLogout }) => {
                           </button>
                       </div>
                   )}
+              </div>
+          </div>
+      )}
+
+      {activeTab === 'settings' && (
+          <div className="p-4 sm:p-6">
+              <div className="bg-white rounded-xl shadow p-4 sm:p-6">
+                  <div className="space-y-4 animate-in fade-in duration-300">
+                      <div className="flex justify-center mb-4">
+                          <div className="bg-emerald-100 p-4 rounded-full">
+                              <Settings className="w-8 h-8 text-emerald-600" />
+                          </div>
+                      </div>
+                      <div>
+                          <label className="block font-bold text-slate-700 mb-2">رقم واتساب لاستقبال الطلبات</label>
+                          <input 
+                            type="tel"
+                            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-left dir-ltr"
+                            value={whatsappNumber}
+                            onChange={e => setWhatsappNumber(e.target.value)}
+                            placeholder="مثال: 249912345678"
+                          />
+                          <p className="text-sm text-gray-500 mt-2">أدخل الرقم مع رمز الدولة بدون أصفار أو علامة + (مثال: 249...)</p>
+                      </div>
+                      <button 
+                        onClick={handleSaveSettings}
+                        disabled={isSavingSettings}
+                        className="w-full bg-slate-800 text-white py-3 rounded-lg font-bold mt-4 disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                          {isSavingSettings ? (
+                              <>جاري الحفظ...</>
+                          ) : (
+                              <>حفظ الإعدادات <CheckCircle className="w-4 h-4"/></>
+                          )}
+                      </button>
+
+                      <div className="mt-8 pt-6 border-t border-gray-100">
+                          <h3 className="font-bold text-slate-800 mb-4">روابط المشاركة</h3>
+                          <div className="space-y-3">
+                              <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 flex justify-between items-center">
+                                  <div>
+                                      <p className="font-bold text-sm text-emerald-700">رابط الزبائن (الطلبات)</p>
+                                      <p className="text-xs text-gray-500 dir-ltr text-left mt-1">{window.location.origin}/</p>
+                                  </div>
+                                  <button 
+                                      onClick={() => {
+                                          navigator.clipboard.writeText(`${window.location.origin}/`);
+                                          setStatusMsg({type: 'success', text: "تم نسخ رابط الزبائن"});
+                                      }}
+                                      className="bg-white p-2 rounded-md shadow-sm border border-gray-200 text-gray-600 hover:text-emerald-600"
+                                  >
+                                      <Copy className="w-4 h-4" />
+                                  </button>
+                              </div>
+                              <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 flex justify-between items-center">
+                                  <div>
+                                      <p className="font-bold text-sm text-blue-700">رابط التاجر (تحديث الأسعار)</p>
+                                      <p className="text-xs text-gray-500 dir-ltr text-left mt-1">{window.location.origin}/merchant</p>
+                                  </div>
+                                  <button 
+                                      onClick={() => {
+                                          navigator.clipboard.writeText(`${window.location.origin}/merchant`);
+                                          setStatusMsg({type: 'success', text: "تم نسخ رابط التاجر"});
+                                      }}
+                                      className="bg-white p-2 rounded-md shadow-sm border border-gray-200 text-gray-600 hover:text-blue-600"
+                                  >
+                                      <Copy className="w-4 h-4" />
+                                  </button>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
               </div>
           </div>
       )}

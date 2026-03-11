@@ -2,7 +2,7 @@ const CACHE_NAME = 'sudanese-market-v1';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
-  '/index.tsx',
+  '/index.jsx',
   '/vite.svg',
   'https://cdn.tailwindcss.com',
   'https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js',

@@ -1,17 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import { Product } from './types';
-import { fetchProducts, initializeData } from './services/productService';
+import { fetchProducts, initializeData, fetchSettings } from './services/productService';
 import MerchantView from './components/MerchantView';
 import AdminPanel from './components/AdminPanel';
+import CustomerView from './components/CustomerView';
 import { ShoppingBag, Lock, Bell, RefreshCw, Database, Copy, Check } from 'lucide-react';
 import { FIX_SQL } from './constants';
 
 const ADMIN_PIN = '0000'; // Simple PIN for demo
 
-function App() {
+function MainApp() {
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
+  const [whatsappNumber, setWhatsappNumber] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [headerClicks, setHeaderClicks] = useState(0);
@@ -24,6 +27,8 @@ function App() {
   // Ref for click timeout
   const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const navigate = useNavigate();
+
   // Request Notification Permission
   useEffect(() => {
     if ('Notification' in window && Notification.permission !== 'granted') {
@@ -33,7 +38,6 @@ function App() {
 
   const triggerNotification = (title: string, body: string) => {
     if ('Notification' in window && Notification.permission === 'granted') {
-       // Check if service worker is ready for mobile notifications
        if (navigator.serviceWorker && navigator.serviceWorker.ready) {
           navigator.serviceWorker.ready.then(registration => {
              registration.showNotification(title, {
@@ -46,7 +50,6 @@ function App() {
           new Notification(title, { body, icon: '/vite.svg' });
        }
     }
-    // Fallback sound
     const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'); 
     audio.play().catch(e => console.log('Audio play failed', e));
   };
@@ -55,11 +58,14 @@ function App() {
     setLoading(true);
     setInitError(null);
     try {
-      // Try to initialize/seed first
       await initializeData();
-      
       const data = await fetchProducts();
       setProducts(data);
+      
+      const settings = await fetchSettings();
+      if (settings) {
+        setWhatsappNumber(settings.whatsapp_number);
+      }
     } catch (error: any) {
       console.error(error);
       if (error.message?.includes('Could not find the table') || error.message?.includes('does not exist')) {
@@ -78,15 +84,10 @@ function App() {
     const subscription = supabase
       .channel('public:products')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
-        // Refresh Data
         loadData();
-
-        // Check for Notification Logic
         if (payload.eventType === 'UPDATE') {
            const newData = payload.new as Product;
            const oldData = payload.old as Partial<Product>;
-           
-           // Notify Admin if a review is requested (Instant Notification)
            if (newData.is_review_requested && !oldData.is_review_requested) {
                triggerNotification('طلب مراجعة جديد 🔔', `تم طلب مراجعة سعر: ${newData.name}`);
            }
@@ -101,9 +102,7 @@ function App() {
 
   const handleHeaderClick = () => {
     setHeaderClicks(prev => prev + 1);
-    
     if (clickTimeoutRef.current) clearTimeout(clickTimeoutRef.current);
-    
     clickTimeoutRef.current = setTimeout(() => {
       setHeaderClicks(0);
     }, 1000);
@@ -119,6 +118,7 @@ function App() {
       setIsAdmin(true);
       setShowLoginModal(false);
       setPin('');
+      navigate('/admin');
     } else {
       alert("رمز خطأ");
       setPin('');
@@ -131,7 +131,6 @@ function App() {
       setTimeout(() => setCopied(false), 2000);
   };
 
-  // 1. Render Error / Setup Screen
   if (initError === 'TABLE_MISSING') {
       return (
           <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4" dir="rtl">
@@ -145,7 +144,6 @@ function App() {
                           جدول المنتجات غير موجود. يرجى إنشاء الجدول في Supabase لتشغيل التطبيق.
                       </p>
                   </div>
-
                   <div className="bg-slate-900 rounded-lg p-4 mb-6 relative group">
                       <pre className="text-emerald-400 font-mono text-xs sm:text-sm overflow-x-auto whitespace-pre-wrap text-left dir-ltr h-40">
                           {FIX_SQL.trim()}
@@ -158,7 +156,6 @@ function App() {
                           {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                       </button>
                   </div>
-
                   <div className="space-y-3">
                       <div className="text-sm text-slate-500 bg-slate-100 p-3 rounded-lg">
                           <ol className="list-decimal list-inside space-y-1">
@@ -197,7 +194,6 @@ function App() {
                           تفاصيل الخطأ: {initError}
                       </p>
                   </div>
-
                   <div className="space-y-3">
                       <div className="text-sm text-slate-500 bg-slate-100 p-3 rounded-lg">
                           <ol className="list-decimal list-inside space-y-1">
@@ -219,7 +215,6 @@ function App() {
       );
   }
 
-  // 2. Render Loading
   if (loading && products.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 flex-col gap-4">
@@ -231,21 +226,8 @@ function App() {
 
   const pendingReviews = products.filter(p => p.is_review_requested).length;
 
-  // 3. Render Admin Panel
-  if (isAdmin) {
-    return (
-      <AdminPanel 
-        products={products} 
-        refreshData={loadData} 
-        onLogout={() => setIsAdmin(false)} 
-      />
-    );
-  }
-
-  // 4. Render Merchant View (Main App)
-  return (
+  const Layout = ({ children, title, showNotifications = false }: { children: React.ReactNode, title: string, showNotifications?: boolean }) => (
     <div className="min-h-screen bg-gray-50 font-sans">
-      {/* Login Modal */}
       {showLoginModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-xs animate-in zoom-in duration-200">
@@ -279,7 +261,6 @@ function App() {
         </div>
       )}
 
-      {/* Header */}
       <header className="bg-emerald-600 text-white pt-safe pb-4 px-4 shadow-lg rounded-b-[2rem] sticky top-0 z-30">
         <div className="flex justify-between items-center mt-2">
            <div 
@@ -291,11 +272,11 @@ function App() {
              </div>
              <div>
                <h1 className="font-bold text-lg">السوق السوداني</h1>
-               <p className="text-emerald-100 text-xs">قائمة الأسعار</p>
+               <p className="text-emerald-100 text-xs">{title}</p>
              </div>
            </div>
 
-           {pendingReviews > 0 && (
+           {showNotifications && pendingReviews > 0 && (
                <div className="bg-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 animate-bounce shadow-lg">
                    <Bell className="w-3 h-3" />
                    {pendingReviews}
@@ -304,16 +285,52 @@ function App() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-md mx-auto pt-4">
-        <MerchantView 
-            products={products} 
-            refreshData={loadData}
-            reviewMode={pendingReviews > 0} 
-            isAdmin={isAdmin} 
-        />
+        {children}
       </main>
     </div>
+  );
+
+  return (
+    <Routes>
+      <Route path="/" element={
+        <Layout title="الطلبات" showNotifications={false}>
+          <CustomerView products={products} whatsappNumber={whatsappNumber} />
+        </Layout>
+      } />
+      <Route path="/merchant" element={
+        <Layout title="تحديث الأسعار" showNotifications={true}>
+          <MerchantView 
+              products={products} 
+              refreshData={loadData}
+              reviewMode={pendingReviews > 0} 
+              isAdmin={false} 
+          />
+        </Layout>
+      } />
+      <Route path="/admin" element={
+        isAdmin ? (
+          <AdminPanel 
+            products={products} 
+            refreshData={loadData} 
+            onLogout={() => {
+              setIsAdmin(false);
+              navigate('/');
+            }} 
+          />
+        ) : (
+          <Navigate to="/" replace />
+        )
+      } />
+    </Routes>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <MainApp />
+    </BrowserRouter>
   );
 }
 

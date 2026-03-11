@@ -39,6 +39,11 @@ export interface Product {
     recorded_date: string; // YYYY-MM-DD
   }
   
+  export interface Settings {
+    id: string;
+    whatsapp_number: string;
+  }
+
   // SheetJS Global Type Declaration
   declare global {
     interface Window {

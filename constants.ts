@@ -24,6 +24,11 @@ create table if not exists orders (
   created_at timestamptz default now()
 );
 
+create table if not exists settings (
+  id text primary key default 'default',
+  whatsapp_number text
+);
+
 -- جدول السجل التاريخي للأسعار (للنسخ الاحتياطي الذكي)
 create table if not exists price_history (
   id uuid default gen_random_uuid() primary key,
@@ -40,11 +45,13 @@ alter table orders add column if not exists delivery_cost numeric default 0;
 alter table products enable row level security;
 alter table orders enable row level security;
 alter table price_history enable row level security;
+alter table settings enable row level security;
 
 -- 3. منح الصلاحيات
 grant all on table products to anon, authenticated, service_role;
 grant all on table orders to anon, authenticated, service_role;
 grant all on table price_history to anon, authenticated, service_role;
+grant all on table settings to anon, authenticated, service_role;
 
 -- 4. تنظيف السياسات القديمة
 drop policy if exists "Enable all access for all users" on products;
@@ -57,6 +64,10 @@ drop policy if exists "Enable all access" on price_history;
 create policy "Enable all access for all users" on products for all using (true) with check (true);
 create policy "Enable all orders access" on orders for all using (true) with check (true);
 create policy "Enable all history access" on price_history for all using (true) with check (true);
+create policy "Enable all settings access" on settings for all using (true) with check (true);
+
+-- إدخال الإعدادات الافتراضية إذا لم تكن موجودة
+insert into settings (id, whatsapp_number) values ('default', '') on conflict (id) do nothing;
 `;
 
 export const INITIAL_DATA_RAW = `

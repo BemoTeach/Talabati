@@ -38,13 +38,25 @@ const sanitizePrice = (price: number | string | null | undefined): number | null
 // Check and seed data if empty
 export const initializeData = async (): Promise<void> => {
   try {
+    // Check products table
     const { count, error } = await supabase
       .from(TABLE_NAME)
       .select('*', { count: 'exact', head: true });
 
     if (error) {
         console.error("Error checking DB:", error);
-        return;
+        throw error; // Throw to trigger TABLE_MISSING in App.tsx
+    }
+
+    // Check settings table
+    const { error: settingsError } = await supabase
+      .from('settings')
+      .select('id')
+      .limit(1);
+
+    if (settingsError && settingsError.code === '42P01') { // 42P01 is undefined_table
+        console.error("Settings table missing:", settingsError);
+        throw new Error("Could not find the table 'settings'"); // Throw to trigger TABLE_MISSING
     }
 
     if (count === 0) {
@@ -229,7 +241,29 @@ export const fetchFullPriceHistory = async (): Promise<PriceHistory[]> => {
     return data as PriceHistory[];
 };
 
-// --- Orders Logic ---
+// --- Settings Logic ---
+export const fetchSettings = async (): Promise<{ whatsapp_number: string } | null> => {
+    const { data, error } = await supabase
+        .from('settings')
+        .select('whatsapp_number')
+        .eq('id', 'default')
+        .single();
+    
+    if (error) {
+        console.warn("Could not fetch settings:", error);
+        return null;
+    }
+    return data;
+};
+
+export const updateSettings = async (whatsapp_number: string): Promise<void> => {
+    const { error } = await supabase
+        .from('settings')
+        .upsert({ id: 'default', whatsapp_number });
+    
+    if (error) throw error;
+};
+
 
 export const fetchOrders = async (): Promise<Order[]> => {
     const { data, error } = await supabase
